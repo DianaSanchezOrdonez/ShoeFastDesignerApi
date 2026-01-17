@@ -26,4 +26,4 @@ COPY . .
 EXPOSE 8080
 
 # IMPORTANTE: Usar variable $PORT de Cloud Run con exec para señales correctas
-CMD exec uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8080}
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8080"]
