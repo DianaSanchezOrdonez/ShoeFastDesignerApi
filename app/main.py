@@ -18,3 +18,12 @@ app.include_router(storage_routes.router)
 @app.get("/")
 async def root():
     return {"message": "Shoe Faster Design API is running"}
+
+@app.get("/health")
+def health():
+    return {"status": "ok", "message": "Service is healthy", "version": "1.0.0"}
+
+if __name__ == "__main__":
+    port = int(os.getenv("PORT", 8080))
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=port)
