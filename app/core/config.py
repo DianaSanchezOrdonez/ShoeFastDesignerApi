@@ -7,7 +7,7 @@ class Settings(BaseSettings):
     PROJECT_ID: str
     LOCATION: str = "us-central1"
     GEMINI_API_KEY: str
-    GOOGLE_APPLICATION_CREDENTIALS: str
+    
     # Modelos Nano Banana
     MODEL_NANO_PRO: str = "gemini-3-pro-image-preview"
     MODEL_NANO_FAST: str = "gemini-2.5-flash-image"
@@ -25,5 +25,3 @@ class Settings(BaseSettings):
 
 # Instancia global para ser usada en toda la app
 settings = Settings()
-
-os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = settings.GOOGLE_APPLICATION_CREDENTIALS
