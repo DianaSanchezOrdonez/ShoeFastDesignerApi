@@ -1,7 +1,7 @@
-fastapi
-uvicorn[standard]
-pydantic-settings
+fastapi>=0.110.0
+uvicorn[standard]>=0.27.0
 google-genai
 google-cloud-storage
 google-auth
 python-multipart
+pydantic-settings
