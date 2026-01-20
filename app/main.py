@@ -1,17 +1,18 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.routes import sketch_to_image_routes, storage_routes
+from app.routes import sketch_to_image_routes, storage_routes, auth_routes
 
 app = FastAPI(title="Shoe Design API")
 
 # Configurar CORS (Para tu frontend en Next.js)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"], 
+    allow_origins=["*"],
     allow_methods=["*"],
-    allow_headers=["*"],
+    allow_headers=["Authorization", "Content-Type"],
 )
 
+app.include_router(auth_routes.router)
 app.include_router(sketch_to_image_routes.router)
 app.include_router(storage_routes.router)
 

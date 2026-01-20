@@ -1,11 +1,14 @@
-from fastapi import APIRouter, UploadFile, File, HTTPException, Response
+from fastapi import APIRouter, UploadFile, File, HTTPException, Response, Depends
 from app.services.image_generation_services import ImageGenerationService
+from app.services.auth_services import auth_service
 
 router = APIRouter(prefix="/sketch-to-image", tags=["Image Generation"])
 gen_service = ImageGenerationService()
 
 @router.post("/shoe")
-async def generate_shoe_image(file: UploadFile = File(...)):
+async def generate_shoe_image(file: UploadFile = File(...), user = Depends(auth_service.verify_token)):
+    print(f"Usuario {user['email']} generando diseño...")
+    
     """Recibe un boceto y devuelve la imagen generada por Gemini Nano Banana."""
     
     if not file.content_type.startswith("image/"):
