@@ -6,12 +6,12 @@ from datetime import timedelta
 
 class ImageStorageService:
     def __init__(self):
-        # creds = service_account.Credentials.from_service_account_file(
-        #     settings.GOOGLE_APPLICATION_CREDENTIALS
-        # )
+        creds = service_account.Credentials.from_service_account_file(
+            settings.GOOGLE_APPLICATION_CREDENTIALS
+        )
         
         self.client = storage.Client(
-            # credentials=creds, 
+            credentials=creds, 
             project=settings.PROJECT_ID
         )
         self.bucket_name = settings.GCS_BUCKET_NAME
