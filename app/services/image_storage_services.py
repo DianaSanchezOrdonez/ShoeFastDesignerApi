@@ -135,7 +135,6 @@ class ImageStorageService:
         
         client = storage.Client()
         bucket = client.bucket(bucket_name)
-        print("bucket_name:", bucket_name)
         
         # El delimitador '/' le dice a GCS que trate los prefijos como carpetas
         blobs = client.list_blobs(bucket_name, delimiter='/')

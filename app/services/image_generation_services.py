@@ -8,9 +8,6 @@ from fastapi import HTTPException
 aspect_ratio = "21:9" # "1:1","2:3","3:2","3:4","4:3","4:5","5:4","9:16","16:9","21:9"
 resolution = "1K" # "1K", "2K", "4K"
 
-REDIS_URL = settings.UPSTASH_REDIS_REST_URL
-REDIS_TOKEN = settings.UPSTASH_REDIS_REST_TOKEN
-
 class ImageGenerationService:
     def __init__(self):
         self.client = genai.Client(api_key=settings.GEMINI_API_KEY)
@@ -18,7 +15,12 @@ class ImageGenerationService:
         # self.model = "gemini-2.5-flash-image"
         
         # Inicializamos el cliente de Upstash de forma asíncrona
-        self.redis = Redis(url=REDIS_URL, token=REDIS_TOKEN)
+        redis_url = settings.UPSTASH_REDIS_REST_URL
+        redis_token = settings.UPSTASH_REDIS_REST_TOKEN
+        
+        print(f"[Storage] Iniciando Redis con URL: {redis_url}")
+        
+        self.redis = Redis(url=redis_url, token=redis_token)
         self.DAILY_LIMIT = int(settings.DAILY_LIMIT)
 
     async def generate_from_sketch(
