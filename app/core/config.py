@@ -23,6 +23,11 @@ class Settings(BaseSettings):
     
     # Configuración Google Cloud Storage
     GCS_BUCKET_NAME: str
+    
+    # Upstash Redis
+    UPSTASH_REDIS_REST_URL: str
+    UPSTASH_REDIS_REST_TOKEN: str
+    DAILY_LIMIT: str
 
     # Cargar archivo .env
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
