@@ -5,9 +5,14 @@ import uuid
 from datetime import datetime
 from app.schemas.storage_schemas import BucketCreate, MoveImagesRequest
 
-router = APIRouter(prefix="/storage", tags=["Storage"])
 storage_service = ImageStorageService()
 auth_service = AuthService()
+
+router = APIRouter(
+    prefix="/storage", 
+    tags=["Storage"],
+    dependencies=[Depends(auth_service.verify_token)]
+)
 
 @router.post("/save")
 async def save_to_cloud_storage(
@@ -82,10 +87,7 @@ async def create_new_collection(
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/move-images")
-async def move_images_to_bucket(
-    data: MoveImagesRequest,
-    user = Depends(auth_service.verify_token)
-):
+async def move_images_to_bucket(data: MoveImagesRequest):
     try:
         success_count = 0
         for blob_name in data.image_names:
