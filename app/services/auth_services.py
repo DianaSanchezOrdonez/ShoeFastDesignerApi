@@ -17,7 +17,6 @@ class AuthService:
         self.auth_url = f"https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key={self.api_key}"
 
     def login_user(self, email: str, password: str):
-        """Valida email/password con Firebase REST API"""
         payload = {"email": email, "password": password, "returnSecureToken": True}
         response = requests.post(self.auth_url, json=payload)
         
@@ -27,7 +26,6 @@ class AuthService:
         return response.json()
 
     def verify_token(self, res: HTTPAuthorizationCredentials = Depends(security)):
-        """Dependencia para proteger rutas"""
         try:
             token = res.credentials
             decoded_token = auth.verify_id_token(token)
@@ -37,5 +35,3 @@ class AuthService:
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Token inválido o expirado"
             )
-
-auth_service = AuthService()
