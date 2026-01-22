@@ -6,3 +6,4 @@ google-auth
 python-multipart
 pydantic-settings
 firebase-admin
+upstash-redis
