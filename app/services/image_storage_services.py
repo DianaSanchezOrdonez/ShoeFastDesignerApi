@@ -16,52 +16,141 @@ class ImageStorageService:
         )
         self.bucket_name = settings.GCS_BUCKET_NAME
         
-    def save_image(self, image_bytes: bytes, destination_blob_name: str, content_type: str = "image/png") -> str:
+    def list_images(self, user_uid: str, prefix: str = None):
         try:
-            bucket = self.client.bucket(self.bucket_name)
-            blob = bucket.blob(destination_blob_name)
-            blob.upload_from_string(image_bytes, content_type=content_type)
+            bucket_name = self._get_user_bucket_name(user_uid)
+            bucket = self.client.bucket(bucket_name)
             
-            print(f"[ImageStorageService] Imagen guardada: {destination_blob_name}")
-
-            return f"gs://{self.bucket_name}/{destination_blob_name}"
-        
-        except GoogleAPIError as e:
-            print(f"[ImageStorageService] Error de Google Cloud: {e}")
-            raise
-        except Exception as e:
-            print(f"[ImageStorageService] Error inesperado: {e}")
-            raise
-          
-    def list_images(self, prefix: str = "library/"):
-        try:
-            bucket = self.client.bucket(self.bucket_name)
-            # prefix="library/" sirve para no traer archivos de otras carpetas si las tuvieras
+            search_prefix = prefix if prefix is not None else ""
             blobs = bucket.list_blobs(prefix=prefix)
             
             image_list = []
             for blob in blobs:
-                # Ignorar si es una carpeta vacía
-                if blob.name.endswith('/'):
+                if blob.name.endswith('/') or blob.name.endswith('.keep'):
                     continue
                 
-                # Generamos una URL firmada para que el frontend pueda verla
                 url = blob.generate_signed_url(
                     version="v4",
-                    expiration=timedelta(minutes=60), # 1 hora de visibilidad
+                    expiration=timedelta(minutes=60),
                     method="GET",
                 )
                 
                 image_list.append({
-                    "name": blob.name.replace(prefix, ""), # Nombre limpio
+                    "name": blob.name.replace(search_prefix, ""),
                     "url": url,
-                    "updated": blob.updated
+                    "updated": blob.updated.isoformat() if blob.updated else None
                 })
-            
+                
             # Ordenar por fecha de creación (más recientes primero)
             image_list.sort(key=lambda x: x['updated'], reverse=True)
             
             return image_list
         except Exception as e:
-            print(f"[ImageStorageService] Error al listar: {e}")
+            print(f"Error listando con UID {user_uid}: {e}")
+            return []
+        
+    def _get_user_bucket_name(self, user_uid: str) -> str:
+        """Centraliza la regla de nombres: siempre 10 chars + sufijo main"""
+        user_id_clean = user_uid[:10].lower()
+        return f"sfd-user-{user_id_clean}-main"
+
+    def get_or_create_user_bucket(self, user_uid: str):
+        try:
+            bucket_name = self._get_user_bucket_name(user_uid)
+            bucket = self.client.lookup_bucket(bucket_name)
+            
+            if bucket is None:
+                print(f"[Storage] Creando bucket: {bucket_name}")
+                bucket = self.client.create_bucket(bucket_name, location="US")
+                bucket.labels = {"owner": user_uid[:10].lower(), "type": "main"}
+                bucket.patch()
+            
+            return bucket.name
+        except Exception as e:
+            print(f"[Storage] Error: {e}")
+            raise e
+    
+    def save_image(self, user_uid: str, image_bytes: bytes, filename: str, folder: str = None):
+        try:
+            # PASO 1: Aseguramos el bucket (si no existe, se crea AQUÍ)
+            bucket_name = self.get_or_create_user_bucket(user_uid)
+            bucket = self.client.bucket(bucket_name)
+
+            # PASO 2: Definimos la ruta (en raíz o en carpeta)
+            path = f"{folder}/{filename}" if folder else filename
+            blob = bucket.blob(path)
+
+            # PASO 3: Subimos la imagen
+            blob.upload_from_string(image_bytes, content_type="image/png")
+            
+            return blob.name
+        except Exception as e:
+            print(f"[Storage] Error al guardar: {e}")
+            raise e
+        
+    def create_collection_folder(self, user_uid: str, collection_name: str):
+        try:
+            # PASO 1: Aseguramos el bucket (si es usario nuevo, se crea AQUÍ)
+            bucket_name = self.get_or_create_user_bucket(user_uid)
+            bucket = self.client.bucket(bucket_name)
+
+            # PASO 2: Marcador de carpeta
+            folder_name = collection_name.lower().strip().replace(" ", "-")
+            marker_blob = bucket.blob(f"{folder_name}/.keep")
+            marker_blob.upload_from_string("") 
+            
+            return folder_name
+        except Exception as e:
+            raise e
+
+    def move_blob(self, source_blob_name: str, dest_bucket_name: str):
+        """Copia el archivo al nuevo destino y lo elimina del origen."""
+        try:
+            source_bucket = self.client.bucket(self.bucket_name) # bucket por defecto
+            source_blob = source_bucket.blob(source_blob_name)
+            
+            dest_bucket = self.client.bucket(dest_bucket_name)
+            
+            new_name = os.path.basename(source_blob_name)
+        
+            # Copia interna en los servidores de Google
+            new_blob = source_bucket.copy_blob(
+                source_blob, dest_bucket, new_name 
+            )
+            
+            # Si la copia es exitosa, eliminamos el original
+            if new_blob:
+                source_blob.delete()
+                return True
+            return False
+        except Exception as e:
+            print(f"[ImageStorageService] Error al mover: {e}")
             raise
+    
+    def list_buckets(self, bucket_name: str):
+        """
+        Lista los 'folders' (prefijos) virtuales en el bucket.
+        """
+        from google.cloud import storage
+        
+        client = storage.Client()
+        bucket = client.bucket(bucket_name)
+        print("bucket_name:", bucket_name)
+        
+        # El delimitador '/' le dice a GCS que trate los prefijos como carpetas
+        blobs = client.list_blobs(bucket_name, delimiter='/')
+        
+        # Consumir el iterador para que GCS llene los prefixes
+        list(blobs) 
+        
+        # blobs.prefixes contiene los nombres de las "carpetas" (ej: "Mules/", "Verano/")
+        collections = []
+        for prefix in blobs.prefixes:
+            # Limpiamos el nombre (quitamos la barra diagonal final)
+            clean_name = prefix.rstrip('/')
+            collections.append({
+                "name": clean_name,
+                "count": 0  # Opcional: podrías contar cuántos archivos hay dentro
+            })
+            
+        return collections
