@@ -117,3 +117,12 @@ async def get_my_collections(user = Depends(auth_service.verify_token)):
     except Exception as e:
         print(f"Error listing collections: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/generate-download-url/{filename}")
+async def get_download_link(filename: str, user = Depends(auth_service.verify_token)):
+    # El bucket depende del ID del usuario autenticado
+    user_id_clean = user['uid'][:10].lower()
+    user_bucket = f"sfd-user-{user_id_clean}-main"
+
+    url = storage_service.generate_download_url(user_bucket, filename)
+    return {"download_url": url}

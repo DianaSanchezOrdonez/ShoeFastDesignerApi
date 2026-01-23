@@ -153,3 +153,17 @@ class ImageStorageService:
             })
             
         return collections
+    
+    def generate_download_url(self, bucket_name: str, blob_name: str):
+        bucket = self.client.bucket(bucket_name)
+        blob = bucket.blob(blob_name)
+
+        # Generamos la URL firmada (V4)
+        url = blob.generate_signed_url(
+            version="v4",
+            expiration=timedelta(minutes=15), # URL temporal por seguridad
+            method="GET",
+            # CLAVE: Esto fuerza al navegador a descargar el archivo
+            response_disposition=f"attachment; filename={blob_name}"
+        )
+        return url
