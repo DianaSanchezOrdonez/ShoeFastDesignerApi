@@ -15,31 +15,39 @@ def save_generation_background(event, context):
         data = json.loads(pubsub_message)
         
         msg_type = data.get("type")
+        payload = data.get("payload", data)
         
         # Caso 1: Crear proyecto
         if msg_type == "CREATE_PROJECT":
-            project = data["payload"]
-            # Guardar el documento principal con el nombre real enviado del frontend
-            db.collection("projects").document(project["id"]).set(project)
-            print(f"Proyecto {project['name']} creado en Firestore.")
+            project_id = payload.get('id')
+            if not project_id:
+                print("Error: No se encontró ID en el payload de creación")
+                return
+
+            db.collection("projects").document(project_id).set(payload)
+            print(f"Proyecto {payload.get('name')} guardado exitosamente.")
         
         # Caso 2: Guardar generación de imagen
         elif msg_type == "SAVE_GENERATION":
-            user_id = data['user_id']
-            project_id = data['project_id']
-            image_bytes = base64.b64decode(data['image_base64'])
+            user_id = payload.get('user_id')
+            project_id = payload.get('project_id')
+            
+            if not user_id or not project_id:
+                print(f"Error: Faltan IDs en el mensaje. User: {user_id}, Project: {project_id}")
+                return
+
+            image_bytes = base64.b64decode(payload['image_base64'])
             
             # 2. Subir a Cloud Storage
             bucket_name = os.environ.get("GCS_BUCKET_NAME")
             bucket = storage_client.bucket(bucket_name)
-            
             gen_id = str(uuid.uuid4())
             file_path = f"users/{user_id}/projects/{project_id}/generations/{gen_id}.png"
             blob = bucket.blob(file_path)
             blob.upload_from_string(image_bytes, content_type="image/png")
             
             # 3. Guardar URL en Firestore
-            image_url = f"https://storage.googleapis.com/{bucket_name}/{file_path}"
+            image_url = f"https://storage.googleapis.com/{bucket_name}/{file_path}"            
             
             db.collection("projects").document(project_id).collection("generations").add({
                 "generation_id": gen_id,
