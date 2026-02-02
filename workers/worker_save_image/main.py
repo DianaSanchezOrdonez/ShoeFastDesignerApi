@@ -19,7 +19,7 @@ def save_generation_background(event, context):
         image_bytes = base64.b64decode(data['image_base64'])
         
         # 2. Subir a Cloud Storage
-        bucket_name = os.environ.get("GCP_BUCKET_NAME")
+        bucket_name = os.environ.get("GCS_BUCKET_NAME")
         bucket = storage_client.bucket(bucket_name)
         
         gen_id = str(uuid.uuid4())
