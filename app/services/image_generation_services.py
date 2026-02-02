@@ -147,9 +147,16 @@ class ImageGenerationService:
                 }
             }
             
+            # Convertimos el mensaje a bytes para enviarlo al publisher
             data = json.dumps(message).encode("utf-8")
-            # Publicación asíncrona (no bloquea el return de la imagen)
-            self.publisher.publish(self.topic_path, data)
-            print(f"[PubSub] Evento enviado para proyecto {project_id}")
+            
+            # 1. Publicamos el mensaje
+            future = self.publisher.publish(self.topic_path, data)
+            
+            # 2. EL CAMBIO CLAVE: Esperar el resultado
+            # Esto bloquea la ejecución solo unos milisegundos hasta confirmar que Pub/Sub recibió el mensaje.
+            message_id = future.result(timeout=60) 
+            
+            print(f"[PubSub] Evento enviado exitosamente. ID: {message_id} para proyecto {project_id}")
         except Exception as e:
             print(f"[PubSub] Error al publicar: {e}")

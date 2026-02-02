@@ -52,7 +52,7 @@ def save_generation_background(event, context):
             db.collection("projects").document(project_id).collection("generations").add({
                 "generation_id": gen_id,
                 "image_url": image_url,
-                "material_id": data.get("material_id"),
+                "material_id": payload.get("material_id"),
                 "created_at": firestore.SERVER_TIMESTAMP
             })
 
