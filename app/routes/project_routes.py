@@ -8,6 +8,7 @@ auth_service = AuthService()
 router = APIRouter(
     prefix="/projects",
     tags=["Projects"],
+    redirect_slashes=False,
     dependencies=[Depends(auth_service.verify_token)]
 )
 
