@@ -1,7 +1,7 @@
 from fastapi import APIRouter, UploadFile, File, Form, HTTPException, Depends
 from app.services.image_storage_services import ImageStorageService
 from app.services.auth_services import AuthService
-import uuid
+from uuid import uuid4
 from datetime import datetime
 from app.schemas.storage_schemas import BucketCreate, MoveImagesRequest
 
@@ -27,7 +27,7 @@ async def save_to_cloud_storage(
         # 2. Procesamos la imagen
         image_bytes = await file.read()
         # Ya no necesitamos el prefijo 'library/' si el bucket es solo suyo
-        filename = f"shoe_{uuid.uuid4().hex}.png"
+        filename = f"shoe_{uuid4().hex}.png"
         
         # 3. Guardamos en SU bucket personal
         signed_url = storage_service.save_image(
