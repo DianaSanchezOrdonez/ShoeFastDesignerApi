@@ -10,9 +10,9 @@ class Settings(BaseSettings):
     GOOGLE_APPLICATION_CREDENTIALS: str
     
     # Modelos Nano Banana
-    MODEL_NANO_PRO: str = "gemini-3-pro-image-preview"
-    MODEL_NANO_FAST: str = "gemini-2.5-flash-image"
-    MODEL_GEMINI_TEXT: str = "gemini-3-pro-preview"
+    MODEL_NANO_PRO: str
+    MODEL_NANO_FAST: str
+    MODEL_GEMINI_TEXT: str
     
     # Auth Firebase
     FIREBASE_WEB_API_KEY: str
@@ -28,6 +28,8 @@ class Settings(BaseSettings):
     UPSTASH_REDIS_REST_URL: str
     UPSTASH_REDIS_REST_TOKEN: str
     DAILY_LIMIT: str
+    
+    PUBSUB_TOPIC_ID: str
 
     # Cargar archivo .env
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
