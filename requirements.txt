@@ -7,3 +7,5 @@ python-multipart
 pydantic-settings
 firebase-admin
 upstash-redis
+google-cloud-firestore
+google-cloud-pubsub
