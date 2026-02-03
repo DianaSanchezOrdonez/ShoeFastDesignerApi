@@ -20,7 +20,6 @@ class ImageGenerationService:
     def __init__(self):
         self.client = genai.Client(api_key=settings.GEMINI_API_KEY)
         self.model = settings.MODEL_NANO_PRO
-        # self.model = "gemini-2.5-flash-image"
         
         # Inicializamos el cliente de Upstash de forma asíncrona
         redis_url = settings.UPSTASH_REDIS_REST_URL
@@ -42,7 +41,7 @@ class ImageGenerationService:
     async def generate_from_sketch(
         self,
         user_id: str,
-        project_id: str,
+        workflow_id: str,
         image_bytes: bytes,
         material_bytes: bytes | None = None,
         material_id: str | None = None,
@@ -121,7 +120,7 @@ class ImageGenerationService:
                 # MANDAR A SEGUNDO PLANO
                 self._publish_save_event(
                     user_id=user_id,
-                    project_id=project_id,
+                    workflow_id=workflow_id,
                     material_id=material_id,
                     image_bytes=generated_data
                 )
@@ -132,15 +131,14 @@ class ImageGenerationService:
             print(f"[ImageGenerationService] Error: {exc}")
             raise exc
         
-    def _publish_save_event(self, user_id, project_id, material_id, image_bytes):
+    def _publish_save_event(self, user_id, workflow_id, material_id, image_bytes):
         try:
             message = {
-                "type": "SAVE_GENERATION",  # <--- AGREGA ESTO
-                "payload": {                # <--- Mete todo en un payload para consistencia
+                "type": "SAVE_GENERATION", 
+                "payload": {               
                     "user_id": user_id,
-                    "project_id": project_id,
+                    "workflow_id": workflow_id,
                     "material_id": material_id,
-                    # Convertimos bytes a base64 string para el JSON
                     "image_base64": b64encode(image_bytes).decode("utf-8"),
                     "created_at": datetime.now().isoformat(),
                     "updated_at": datetime.now().isoformat()
@@ -157,6 +155,6 @@ class ImageGenerationService:
             # Esto bloquea la ejecución solo unos milisegundos hasta confirmar que Pub/Sub recibió el mensaje.
             message_id = future.result(timeout=60) 
             
-            print(f"[PubSub] Evento enviado exitosamente. ID: {message_id} para proyecto {project_id}")
+            print(f"[PubSub] Evento enviado exitosamente. ID: {message_id} para flujo de trabajo {workflow_id}")
         except Exception as e:
             print(f"[PubSub] Error al publicar: {e}")

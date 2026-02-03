@@ -14,7 +14,7 @@ router = APIRouter(
 @router.post("/shoe")
 async def generate_shoe_image(
     file: UploadFile = File(...), 
-    project_id: str = Form(...),
+    workflow_id: str = Form(...),
     material_file: UploadFile = File(None),
     material_id: str = Form(None),
     user = Depends(auth_service.verify_token)
@@ -38,7 +38,7 @@ async def generate_shoe_image(
         # 3. Llamar al servicio
         generated_image_bytes = await gen_service.generate_from_sketch(
             user_id=user['uid'],
-            project_id=project_id,
+            workflow_id=workflow_id,
             image_bytes=input_image_bytes,
             material_bytes=material_image_bytes,
             material_id=material_id

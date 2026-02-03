@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.routes import sketch_to_image_routes, storage_routes, auth_routes, project_routes
+from app.routes import sketch_to_image_routes, storage_routes, auth_routes, workflow_routes
 
 app = FastAPI(title="Shoe Design API")
 
@@ -11,7 +11,7 @@ app.add_middleware(
     allow_headers=["Authorization", "Content-Type"],
 )
 
-app.include_router(project_routes.router)
+app.include_router(workflow_routes.router)
 app.include_router(auth_routes.router)
 app.include_router(sketch_to_image_routes.router)
 app.include_router(storage_routes.router)
