@@ -30,6 +30,8 @@ class Settings(BaseSettings):
     DAILY_LIMIT: str
     
     PUBSUB_TOPIC_ID: str
+    
+    OPENAI_API_KEY: str
 
     # Cargar archivo .env
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")

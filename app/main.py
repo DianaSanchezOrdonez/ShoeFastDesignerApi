@@ -22,7 +22,7 @@ async def root():
 
 @app.get("/health")
 def health():
-    return {"status": "ok", "message": "Service is healthy", "version": "1.0.0"}
+    return {"status": "ok", "message": "Service is healthy", "version": "2.0.0"}
 
 if __name__ == "__main__":
     port = int(os.getenv("PORT", 8080))
