@@ -63,3 +63,33 @@ async def get_workflow_details(
         )
     
     return details
+
+@router.patch("/{workflow_id}/close")
+async def close_workflow(
+    workflow_id: str,
+    user = Depends(auth_service.verify_token)
+):    
+    try:
+        updated_data = await workflow_service.close_workflow(
+            workflow_id=workflow_id, 
+            user_id=user["uid"]
+        )
+
+        if not updated_data:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Workflow no encontrado o no pertenece al usuario"
+            )
+
+        return {
+            "status": "success",
+            "message": "Workflow cerrado exitosamente",
+            "data": updated_data
+        }
+
+    except Exception as e:
+        print(f"[API Error Close Workflow] {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Error interno al cerrar el flujo"
+        )

@@ -64,7 +64,11 @@ class WorkflowService:
 
 
     async def get_user_workflows(self, user_id: str):
-        workflows_ref = self.db.collection("workflows").where("user_id", "==", user_id)
+        workflows_ref = (
+            self.db.collection("workflows")
+            .where("user_id", "==", user_id)
+            .where("status", "==", "active")
+        )
         docs = workflows_ref.stream()
         
         workflows = []
@@ -207,5 +211,39 @@ class WorkflowService:
         )
         
         return {"download_url": url}
+    
+    async def close_workflow(self, workflow_id: str, user_id: str):
+        now = datetime.utcnow().isoformat()
+        workflow_ref = self.db.collection("workflows").document(workflow_id)
+        
+        # Verificamos que el documento existe y pertenece al usuario
+        doc = workflow_ref.get()
+        if not doc.exists or doc.to_dict().get("user_id") != user_id:
+            return None
+
+        workflow_data = {
+            "status": "closed",
+            "closed_at": now,
+            "updated_at": now
+        }
+
+        # Actualizamos en Firestore
+        workflow_ref.update(workflow_data)
+
+        # Opcional: Notificar vía PubSub si otros servicios (analytics, etc) lo requieren
+        message = {
+            "type": "CLOSE_WORKFLOW",
+            "payload": {
+                "id": workflow_id,
+                "user_id": user_id,
+                "closed_at": now
+            }
+        }
+        try:
+            self.publisher.publish(self.topic_path, json.dumps(message).encode("utf-8"))
+        except Exception as e:
+            print(f"[PubSub Error Close] {e}")
+
+        return workflow_data
 
 
