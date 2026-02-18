@@ -167,3 +167,30 @@ class ImageStorageService:
             response_disposition=f"attachment; filename={blob_name}"
         )
         return url
+    
+    async def list_leathers(self):
+        try:
+            client = storage.Client()
+            bucket_name = "leather_bucket"
+            bucket = client.bucket(bucket_name)
+            
+            blobs = bucket.list_blobs()
+            materials_list = []
+            
+            for blob in blobs:
+                if blob.name.lower().endswith(('.png', '.jpg', '.jpeg')):
+                    blob.reload() 
+                    metadata = blob.metadata or {}
+                    
+                    public_url = f"https://storage.googleapis.com/{bucket_name}/{blob.name}"
+                    
+                    materials_list.append({
+                        "id": metadata.get("id", blob.name.split('.')[0]),
+                        "name": metadata.get("name", "Material sin nombre"),
+                        "image": public_url, 
+                    })
+            
+            return materials_list
+        except Exception as e:
+            print(f"Error: {e}")
+            raise HTTPException(status_code=500, detail="Error al acceder al bucket")

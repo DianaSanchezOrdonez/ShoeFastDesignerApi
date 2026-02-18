@@ -126,3 +126,12 @@ async def get_download_link(filename: str, user = Depends(auth_service.verify_to
 
     url = storage_service.generate_download_url(user_bucket, filename)
     return {"download_url": url}
+
+@router.get("/leathers")
+async def list_leathers():
+    leathers = await storage_service.list_leathers()
+        
+    return {
+        "status": "success",
+        "leathers": leathers
+    }
