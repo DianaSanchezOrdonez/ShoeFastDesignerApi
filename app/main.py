@@ -9,6 +9,7 @@ app.add_middleware(
     allow_origins=["*"],
     allow_methods=["*"],
     allow_headers=["Authorization", "Content-Type"],
+    expose_headers=["X-Strategy"]
 )
 
 app.include_router(workflow_routes.router)

@@ -1,6 +1,7 @@
 from fastapi import APIRouter, UploadFile, File, HTTPException, Response, Depends, Form
 from app.services.image_generation_services import ImageGenerationService
 from app.services.auth_services import AuthService
+import httpx
 
 gen_service = ImageGenerationService()
 auth_service = AuthService()
@@ -15,8 +16,9 @@ router = APIRouter(
 async def generate_shoe_image(
     file: UploadFile = File(...), 
     workflow_id: str = Form(...),
-    material_file: UploadFile = File(None),
+    # material_file: UploadFile = File(None),
     material_id: str = Form(None),
+    material_url: str = Form(None),
     user = Depends(auth_service.verify_token)
     ):    
     
@@ -29,8 +31,13 @@ async def generate_shoe_image(
         material_image_bytes = None
         
         # Si el usuario envió un material, leemos sus bytes
-        if material_file:
-            material_image_bytes = await material_file.read()
+        # if material_file:
+        #     material_image_bytes = await material_file.read()
+        if material_url:
+            async with httpx.AsyncClient() as client:
+                resp = await client.get(material_url)
+                if resp.status_code == 200:
+                    material_image_bytes = resp.content
         
         # 2. Prompt base (podrías recibirlo también por el body si quisieras)        
         # prompt_text = "Convierte el boceto a una imagen realista. Fondo blanco. Un solo zapato. Cuero. Crea tres vistas: 3/4, frontal y sagital en la misma image. Relación de aspecto 3:1"
@@ -50,8 +57,6 @@ async def generate_shoe_image(
         # Si is_fallback es True, mandamos el header para que el frontend lo detecte
         headers = {"X-Strategy": "fallback"} if is_fallback else {"X-Strategy": "primary"}
         
-        print('headersss', headers)
-
         return Response(content=generated_image_bytes, media_type="image/png", headers=headers)
 
     except Exception as e:

@@ -31,6 +31,7 @@ class Settings(BaseSettings):
     
     PUBSUB_TOPIC_ID: str
     
+    ENABLE_OPENAI: str = "False"
     OPENAI_API_KEY: str
 
     # Cargar archivo .env
