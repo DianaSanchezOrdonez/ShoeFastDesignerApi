@@ -7,6 +7,7 @@ from google.cloud import storage, firestore, pubsub_v1
 from google.oauth2 import service_account
 import os
 import urllib.parse
+from google.cloud.firestore_v1.base_query import FieldFilter
 
 class WorkflowService:
     def __init__(self):
@@ -66,8 +67,8 @@ class WorkflowService:
     async def get_user_workflows(self, user_id: str):
         workflows_ref = (
             self.db.collection("workflows")
-            .where("user_id", "==", user_id)
-            .where("status", "==", "active")
+            .where(filter=FieldFilter("user_id", "==", user_id))
+            .where(filter=FieldFilter("status", "==", "active"))
         )
         docs = workflows_ref.stream()
         
@@ -148,7 +149,7 @@ class WorkflowService:
         workflow_docs = (
             self.db
             .collection("workflows")
-            .where("user_id", "==", user_id)
+            .where(filter=FieldFilter("user_id", "==", user_id))
             .order_by("created_at", direction=firestore.Query.DESCENDING)
             .stream()
         )

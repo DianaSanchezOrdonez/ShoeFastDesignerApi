@@ -10,3 +10,4 @@ upstash-redis
 google-cloud-firestore
 google-cloud-pubsub
 openai>=1.12.0
+cachetools>=5.3.1

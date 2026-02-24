@@ -3,6 +3,11 @@ from google.oauth2 import service_account
 from google.api_core.exceptions import GoogleAPIError
 from app.core.config import settings
 from datetime import timedelta
+from fastapi import HTTPException
+from uuid import uuid4
+from concurrent.futures import ThreadPoolExecutor
+from cachetools import TTLCache
+import asyncio
 
 class ImageStorageService:
     def __init__(self):
@@ -15,6 +20,17 @@ class ImageStorageService:
             project=settings.PROJECT_ID
         )
         self.bucket_name = settings.GCS_BUCKET_NAME
+        
+        self.leather_bucket_name = "leather_bucket"
+        self.butrich_bucket_name = "butrich_bucket"
+        
+        # --- MEJORA: CACHES INDEPENDIENTES ---
+        # Guardamos los resultados en memoria para evitar latencia en cada request
+        self.leather_cache = TTLCache(maxsize=1, ttl=3600)  # 1 hora para cueros
+        self.butrich_cache = TTLCache(maxsize=1, ttl=2700)  # 45 min para Butrich (por la firma)
+        
+        # --- MEJORA: PROCESADOR EN PARALELO ---
+        self.executor = ThreadPoolExecutor(max_workers=10)
         
     def list_images(self, user_uid: str, prefix: str = None):
         try:
@@ -169,28 +185,91 @@ class ImageStorageService:
         return url
     
     async def list_leathers(self):
+        """Lista cueros estándar con Cache y Paralelismo"""
+        # Si está en cache, retornamos de inmediato
+        if "leather_list" in self.leather_cache:
+            return self.leather_cache["leather_list"]
+
         try:
-            client = storage.Client()
-            bucket_name = "leather_bucket"
-            bucket = client.bucket(bucket_name)
+            bucket = self.client.bucket(self.leather_bucket_name)
+            blobs = list(bucket.list_blobs())
+            loop = asyncio.get_event_loop()
+
+            def process_leather(blob):
+                if not blob.name.lower().endswith(('.png', '.jpg', '.jpeg')):
+                    return None
+                
+                blob.reload()
+                metadata = blob.metadata or {}
+                public_url = f"https://storage.googleapis.com/{self.leather_bucket_name}/{blob.name}"
+                
+                return {
+                    "id": metadata.get("id", blob.name.split('.')[0]),
+                    "name": metadata.get("name", blob.name.split('.')[0].replace('_', ' ').capitalize()),
+                    "key": str(uuid4()),
+                    "image": public_url, 
+                }
+
+            # Procesamos todos los cueros en paralelo
+            tasks = [loop.run_in_executor(self.executor, process_leather, b) for b in blobs]
+            results = await asyncio.gather(*tasks)
             
-            blobs = bucket.list_blobs()
-            materials_list = []
-            
-            for blob in blobs:
-                if blob.name.lower().endswith(('.png', '.jpg', '.jpeg')):
-                    blob.reload() 
-                    metadata = blob.metadata or {}
-                    
-                    public_url = f"https://storage.googleapis.com/{bucket_name}/{blob.name}"
-                    
-                    materials_list.append({
-                        "id": metadata.get("id", blob.name.split('.')[0]),
-                        "name": metadata.get("name", "Material sin nombre"),
-                        "image": public_url, 
-                    })
-            
-            return materials_list
+            final_list = [r for r in results if r is not None]
+            self.leather_cache["leather_list"] = final_list
+            return final_list
+
         except Exception as e:
-            print(f"Error: {e}")
-            raise HTTPException(status_code=500, detail="Error al acceder al bucket")
+            print(f"Error list_leathers: {e}")
+            raise HTTPException(status_code=500, detail="Error al acceder al bucket de cueros")
+
+    async def get_butrich_exclusive(self, user_email: str):
+        """Lista materiales Butrich con Paralelismo y Firmas Criptográficas"""
+        # Validación de dominio y admins
+        ADMIN_EMAILS = ["dianaordonez1998@gmail.com", "robert.buleje@utec.edu.pe"]
+        is_butrich = user_email.lower().endswith("@butrich.com")
+        is_admin = user_email.lower() in ADMIN_EMAILS
+
+        if not is_butrich and not is_admin:
+            return []
+
+        # Retorno desde Cache
+        if "exclusive_list" in self.butrich_cache:
+            return self.butrich_cache["exclusive_list"]
+
+        try:
+            bucket = self.client.bucket(self.butrich_bucket_name)
+            blobs = list(bucket.list_blobs())
+            loop = asyncio.get_event_loop()
+
+            def process_private_blob(blob):
+                if not blob.name.lower().endswith(('.png', '.jpg', '.jpeg')):
+                    return None
+                
+                # Firmado de URL (esta es la parte lenta que ahora es paralela)
+                signed_url = blob.generate_signed_url(
+                    version="v4",
+                    expiration=timedelta(hours=1),
+                    method="GET"
+                )
+                
+                blob.reload()
+                metadata = blob.metadata or {}
+                
+                return {
+                    "id": metadata.get("id", blob.name.split('.')[0]),
+                    "name": metadata.get("name", "Material Butrich"),
+                    "key": str(uuid4()),
+                    "image": signed_url
+                }
+
+            # Lanzamos todas las firmas simultáneamente
+            tasks = [loop.run_in_executor(self.executor, process_private_blob, b) for b in blobs]
+            results = await asyncio.gather(*tasks)
+            
+            final_list = [r for r in results if r is not None]
+            self.butrich_cache["exclusive_list"] = final_list
+            return final_list
+
+        except Exception as e:
+            print(f"Error get_butrich_exclusive: {e}")
+            raise HTTPException(status_code=500, detail="Error al recuperar colección privada")

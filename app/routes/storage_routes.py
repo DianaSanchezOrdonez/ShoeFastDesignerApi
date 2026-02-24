@@ -135,3 +135,16 @@ async def list_leathers():
         "status": "success",
         "leathers": leathers
     }
+
+@router.get("/butrich-collection")
+async def get_butrich_exclusive(user = Depends(auth_service.verify_token)):
+    try:
+        items = await storage_service.get_butrich_exclusive(user["email"])
+                
+        return {
+            "status": "success",
+            "collections": items
+        }
+    except Exception as e:
+        print(f"Error listing collections: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
