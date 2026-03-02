@@ -52,7 +52,8 @@ class ImageGenerationService:
         
         await self._check_rate_limit(user_id)
         
-        tech_desc = self._prepare_technical_description(heel_height, platform_height, pitch)            
+        tech_desc = self._prepare_technical_description(heel_height, platform_height, pitch)     
+        technical_params = {"heel": heel_height, "platform": platform_height, "pitch": pitch}       
         
         try:
             if settings.ENABLE_OPENAI != "True":
@@ -84,9 +85,9 @@ class ImageGenerationService:
             "Convierte el boceto a una imagen realista de calzado profesional. "
             "Fondo blanco puro. Un solo zapato. Estilo fotográfico de catálogo. "
             "Muestra tres vistas: 3/4, lateral y frontal en la misma imagen. "
-            f"Detalles Técnicos: {tech_desc}."
+            f"{tech_desc}."
         )
-        
+                
         parts = [types.Part(inline_data=types.Blob(mime_type="image/jpeg", data=image_bytes))]
         
         if material_bytes:
@@ -252,15 +253,15 @@ class ImageGenerationService:
         parts = []
         
         if heel and heel != "sin valor":
-            parts.append(f"Tacón de {heel} cm")
+            parts.append(f"Se debe respetar el estilo del boceto original, el calzado generado debe tener una altura de tacón de {heel} cm")
         
         if platform and platform != "sin valor":
-            parts.append(f"Plataforma de {platform} cm")
+            parts.append(f"con una plataforma {platform} cm")
             
         if pitch and pitch != "sin valor":
-            parts.append(f"Quiebre de {pitch} cm")
+            parts.append(f"y un quiebre (diferencia de altura entre el tacón y el la plataforma) de {pitch} cm")
 
         if not parts:
-            return "Se debe respetar el estilo del boceto original"
+            return ""
         
         return ", ".join(parts)
