@@ -45,25 +45,27 @@ class ImageGenerationService:
         image_bytes: bytes,
         material_bytes: bytes | None = None,
         material_id: str | None = None,
-        heel_height: str | None = None,      # Nuevo
-        platform_height: str | None = None,  # Nuevo
-        pitch: str | None = None,            # Nuevo
+        heel_height: str | None = None,     
+        platform_height: str | None = None, 
+        pitch: str | None = None,           
+        user_prompt: str | None = None,
     ) -> tuple[bytes | None, bool]:
         
         await self._check_rate_limit(user_id)
         
-        tech_desc = self._prepare_technical_description(heel_height, platform_height, pitch)     
+        tech_desc = self._prepare_technical_description(heel_height, platform_height, pitch)    
+        cleaned_user_prompt = self._clean_user_prompt(user_prompt) 
         technical_params = {"heel": heel_height, "platform": platform_height, "pitch": pitch}       
         
         try:
             if settings.ENABLE_OPENAI != "True":
                 print(f"[IA] Intentando generación con Gemini ({self.gemini_model})")
                 generated_data = await self._generate_with_gemini(
-                    image_bytes, material_bytes, material_id, tech_desc
+                    image_bytes, material_bytes, material_id, tech_desc, cleaned_user_prompt
                 )
                 
                 if generated_data:
-                    self._publish_save_event(user_id, workflow_id, material_id, generated_data, technical_params)
+                    self._publish_save_event(user_id, workflow_id, material_id, generated_data, technical_params, cleaned_user_prompt)
                     return generated_data, False
             
             else:
@@ -73,19 +75,20 @@ class ImageGenerationService:
                 )
                 
                 if generated_data:
-                    self._publish_save_event(user_id, workflow_id, material_id, generated_data, technical_params)
+                    self._publish_save_event(user_id, workflow_id, material_id, generated_data, technical_params, cleaned_user_prompt)
                     return generated_data, True
 
         except Exception as exc:
             print(f"[ImageGenerationService] Error: {exc}")
             raise exc
         
-    async def _generate_with_gemini(self, image_bytes, material_bytes, material_id, tech_desc):
+    async def _generate_with_gemini(self, image_bytes, material_bytes, material_id, tech_desc, user_prompt):
         prompt_base = (
             "Convierte el boceto a una imagen realista de calzado profesional. "
             "Fondo blanco puro. Un solo zapato. Estilo fotográfico de catálogo. "
             "Muestra tres vistas: 3/4, lateral y frontal en la misma imagen. "
             f"{tech_desc}."
+            f"{user_prompt}"
         )
                 
         parts = [types.Part(inline_data=types.Blob(mime_type="image/jpeg", data=image_bytes))]
@@ -204,7 +207,7 @@ class ImageGenerationService:
             print(f"[OpenAI Fallback Error] {exc}")
             return None
         
-    def _publish_save_event(self, user_id, workflow_id, material_id, image_bytes, tech_params):
+    def _publish_save_event(self, user_id, workflow_id, material_id, image_bytes, tech_params, user_prompt):
         try:
             message = {
                 "type": "SAVE_GENERATION", 
@@ -214,6 +217,7 @@ class ImageGenerationService:
                     "material_id": material_id,
                     "technical_specs": tech_params,
                     "image_base64": b64encode(image_bytes).decode("utf-8"),
+                    "user_prompt": user_prompt,
                     "created_at": datetime.now().isoformat(),
                     "updated_at": datetime.now().isoformat()
                 }
@@ -265,3 +269,16 @@ class ImageGenerationService:
             return ""
         
         return ", ".join(parts)
+    
+    def _clean_user_prompt(self, raw_prompt: str | None) -> str:
+        if not raw_prompt or len(raw_prompt.strip()) < 3:
+            return ""
+        
+        # Lista negra básica (Deny-list)
+        # forbidden_terms = ["ignore", "skip", "system", "instruction", "delete", "format", "prompt"]
+        forbidden_terms = ["ignorar", "omitir", "saltar", "sistema", "instrucción", "borrar", "formato", "prompt"]
+        clean_text = raw_prompt.lower()
+        for term in forbidden_terms:
+            clean_text = clean_text.replace(term, "")
+            
+        return f"Detalles estéticos adicionales pedidos por el usuario: {clean_text[:150]}."
