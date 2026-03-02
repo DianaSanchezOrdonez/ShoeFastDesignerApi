@@ -45,19 +45,24 @@ class ImageGenerationService:
         image_bytes: bytes,
         material_bytes: bytes | None = None,
         material_id: str | None = None,
+        heel_height: str | None = None,      # Nuevo
+        platform_height: str | None = None,  # Nuevo
+        pitch: str | None = None,            # Nuevo
     ) -> tuple[bytes | None, bool]:
         
         await self._check_rate_limit(user_id)
-            
+        
+        tech_desc = self._prepare_technical_description(heel_height, platform_height, pitch)            
+        
         try:
             if settings.ENABLE_OPENAI != "True":
                 print(f"[IA] Intentando generación con Gemini ({self.gemini_model})")
                 generated_data = await self._generate_with_gemini(
-                    image_bytes, material_bytes, material_id
+                    image_bytes, material_bytes, material_id, tech_desc
                 )
                 
                 if generated_data:
-                    self._publish_save_event(user_id, workflow_id, material_id, generated_data)
+                    self._publish_save_event(user_id, workflow_id, material_id, generated_data, technical_params)
                     return generated_data, False
             
             else:
@@ -67,20 +72,21 @@ class ImageGenerationService:
                 )
                 
                 if generated_data:
-                    self._publish_save_event(user_id, workflow_id, material_id, generated_data)
+                    self._publish_save_event(user_id, workflow_id, material_id, generated_data, technical_params)
                     return generated_data, True
 
         except Exception as exc:
             print(f"[ImageGenerationService] Error: {exc}")
             raise exc
         
-    async def _generate_with_gemini(self, image_bytes, material_bytes, material_id):
+    async def _generate_with_gemini(self, image_bytes, material_bytes, material_id, tech_desc):
         prompt_base = (
             "Convierte el boceto a una imagen realista de calzado profesional. "
             "Fondo blanco puro. Un solo zapato. Estilo fotográfico de catálogo. "
-            "Muestra tres vistas: 3/4, lateral y frontal en la misma imagen."
+            "Muestra tres vistas: 3/4, lateral y frontal en la misma imagen. "
+            f"Detalles Técnicos: {tech_desc}."
         )
-
+        
         parts = [types.Part(inline_data=types.Blob(mime_type="image/jpeg", data=image_bytes))]
         
         if material_bytes:
@@ -197,7 +203,7 @@ class ImageGenerationService:
             print(f"[OpenAI Fallback Error] {exc}")
             return None
         
-    def _publish_save_event(self, user_id, workflow_id, material_id, image_bytes):
+    def _publish_save_event(self, user_id, workflow_id, material_id, image_bytes, tech_params):
         try:
             message = {
                 "type": "SAVE_GENERATION", 
@@ -205,6 +211,7 @@ class ImageGenerationService:
                     "user_id": user_id,
                     "workflow_id": workflow_id,
                     "material_id": material_id,
+                    "technical_specs": tech_params,
                     "image_base64": b64encode(image_bytes).decode("utf-8"),
                     "created_at": datetime.now().isoformat(),
                     "updated_at": datetime.now().isoformat()
@@ -240,3 +247,20 @@ class ImageGenerationService:
                 status_code=429,
                 detail=f"Límite diario de {self.DAILY_LIMIT} generaciones alcanzado."
             )
+            
+    def _prepare_technical_description(self, heel: str | None, platform: str | None, pitch: str | None) -> str:
+        parts = []
+        
+        if heel and heel != "sin valor":
+            parts.append(f"Tacón de {heel} cm")
+        
+        if platform and platform != "sin valor":
+            parts.append(f"Plataforma de {platform} cm")
+            
+        if pitch and pitch != "sin valor":
+            parts.append(f"Quiebre de {pitch} cm")
+
+        if not parts:
+            return "Se debe respetar el estilo del boceto original"
+        
+        return ", ".join(parts)
