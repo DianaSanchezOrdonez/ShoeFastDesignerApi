@@ -21,7 +21,6 @@ async def generate_shoe_image(
     material_url: str = Form(None),
     heel_height: str = Form(None),
     platform_height: str = Form(None),
-    pitch: str = Form(None),
     user_prompt: str = Form(None),
     user = Depends(auth_service.verify_token)
     ):    
@@ -55,7 +54,6 @@ async def generate_shoe_image(
             material_id=material_id,
             heel_height=heel_height,
             platform_height=platform_height,
-            pitch=pitch,
             user_prompt=user_prompt
         )
 

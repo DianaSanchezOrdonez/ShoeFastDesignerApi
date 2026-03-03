@@ -44,14 +44,25 @@ def save_generation_background(event, context):
             blob.upload_from_string(image_bytes, content_type="image/png")
 
             # 3. Guardar URL en Firestore
-            image_url = f"https://storage.googleapis.com/{bucket_name}/{blob_path}"            
+            image_url = f"https://storage.googleapis.com/{bucket_name}/{blob_path}" 
             
-            db.collection("workflows").document(workflow_id).collection("generations").add({
+            generation_doc = {
                 "generation_id": gen_id,
                 "image_blob_path": blob_path,
                 "material_id": payload.get("material_id"),
                 "created_at": firestore.SERVER_TIMESTAMP
-            })
+            }
+
+            if payload.get("technical_specs"):
+                generation_doc["technical_specs"] = payload["technical_specs"]
+
+            if payload.get("user_prompt"):
+                generation_doc["user_prompt"] = payload["user_prompt"]           
+            
+            db.collection("workflows") \
+                .document(workflow_id) \
+                .collection("generations") \
+                .add(generation_doc)
 
             # 4. Actualizar contador en el flujo de trabajo padre
             db.collection("workflows").document(workflow_id).update({

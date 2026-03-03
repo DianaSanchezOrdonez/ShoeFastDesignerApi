@@ -45,54 +45,63 @@ class ImageGenerationService:
         image_bytes: bytes,
         material_bytes: bytes | None = None,
         material_id: str | None = None,
-        heel_height: str | None = None,     
-        platform_height: str | None = None, 
-        pitch: str | None = None,           
+        heel_height: str | None = None,
+        platform_height: str | None = None,
         user_prompt: str | None = None,
     ) -> tuple[bytes | None, bool]:
-        
+
         await self._check_rate_limit(user_id)
-        
-        tech_desc = self._prepare_technical_description(heel_height, platform_height, pitch)    
-        cleaned_user_prompt = self._clean_user_prompt(user_prompt) 
-        technical_params = {"heel": heel_height, "platform": platform_height, "pitch": pitch}       
-        
-        try:
-            if settings.ENABLE_OPENAI != "True":
-                print(f"[IA] Intentando generación con Gemini ({self.gemini_model})")
+
+        tech_desc = self._prepare_technical_description(heel_height, platform_height)
+        cleaned_user_prompt = self._clean_user_prompt(user_prompt)
+        technical_params = {"heel": heel_height, "platform": platform_height}
+
+        generated_data: bytes | None = None
+        used_openai: bool = False
+
+        if settings.ENABLE_OPENAI != "True":
+            print(f"[IA] Intentando generación con Gemini ({self.gemini_model})")
+            try:
                 generated_data = await self._generate_with_gemini(
                     image_bytes, material_bytes, material_id, tech_desc, cleaned_user_prompt
                 )
-                
-                if generated_data:
-                    self._publish_save_event(user_id, workflow_id, material_id, generated_data, technical_params, cleaned_user_prompt)
-                    return generated_data, False
-            
-            else:
-                print(f"[ImageGenerationService] Gemini saturado. Iniciando fallback multimodal con OpenAI")
+            except Exception as e:
+                print(f"[IA] Gemini falló: {e}")
+                generated_data = None
+
+        else:
+            print("[IA] Modo OpenAI activo (ENABLE_OPENAI=True)")
+            try:
                 generated_data = await self._generate_with_openai_fallback(
                     image_bytes, material_id
                 )
-                
-                if generated_data:
-                    self._publish_save_event(user_id, workflow_id, material_id, generated_data, technical_params, cleaned_user_prompt)
-                    return generated_data, True
+                used_openai = True
+            except Exception as e:
+                print(f"[IA] OpenAI falló: {e}")
+                generated_data = None
 
-        except Exception as exc:
-            print(f"[ImageGenerationService] Error: {exc}")
-            raise exc
+        # Solo se ejecuta Cloud Run si hay imagen generada
+        if generated_data:
+            self._publish_save_event(
+                user_id, workflow_id, material_id,
+                generated_data, technical_params, cleaned_user_prompt
+            )
+            return generated_data, used_openai
+
+        print("[IA] No se generó imagen. Cloud Run NO será ejecutado.")
+        return None, used_openai
         
     async def _generate_with_gemini(self, image_bytes, material_bytes, material_id, tech_desc, user_prompt):
         prompt_base = (
             "Convierte el boceto a una imagen realista de calzado profesional. "
             "Fondo blanco puro. Un solo zapato. Estilo fotográfico de catálogo. "
-            "Muestra tres vistas: 3/4, lateral y frontal en la misma imagen. "
+            "Muestra tres vistas: 3/4, lateral y frontal en la misma imagen "
             f"{tech_desc}."
             f"{user_prompt}"
         )
                 
         parts = [types.Part(inline_data=types.Blob(mime_type="image/jpeg", data=image_bytes))]
-        
+                
         if material_bytes:
             prompt_text = f"{prompt_base} Usa la segunda imagen como referencia exacta para la textura y color del material: {material_id}."
             parts.append(types.Part(inline_data=types.Blob(mime_type="image/jpeg", data=material_bytes)))
@@ -215,8 +224,8 @@ class ImageGenerationService:
                     "user_id": user_id,
                     "workflow_id": workflow_id,
                     "material_id": material_id,
-                    "technical_specs": tech_params,
                     "image_base64": b64encode(image_bytes).decode("utf-8"),
+                    "technical_specs": tech_params,
                     "user_prompt": user_prompt,
                     "created_at": datetime.now().isoformat(),
                     "updated_at": datetime.now().isoformat()
@@ -253,17 +262,14 @@ class ImageGenerationService:
                 detail=f"Límite diario de {self.DAILY_LIMIT} generaciones alcanzado."
             )
             
-    def _prepare_technical_description(self, heel: str | None, platform: str | None, pitch: str | None) -> str:
+    def _prepare_technical_description(self, heel: str | None, platform: str | None) -> str:
         parts = []
         
         if heel and heel != "sin valor":
-            parts.append(f"Se debe respetar el estilo del boceto original, el calzado generado debe tener una altura de tacón de {heel} cm")
+            parts.append(f"Se debe respetar el estilo del boceto original, el calzado generado debe tener tacón {heel}")
         
         if platform and platform != "sin valor":
-            parts.append(f"con una plataforma {platform} cm")
-            
-        if pitch and pitch != "sin valor":
-            parts.append(f"y un quiebre (diferencia de altura entre el tacón y el la plataforma) de {pitch} cm")
+            parts.append(f"con una plataforma {platform}")
 
         if not parts:
             return ""
@@ -273,12 +279,73 @@ class ImageGenerationService:
     def _clean_user_prompt(self, raw_prompt: str | None) -> str:
         if not raw_prompt or len(raw_prompt.strip()) < 3:
             return ""
-        
-        # Lista negra básica (Deny-list)
-        # forbidden_terms = ["ignore", "skip", "system", "instruction", "delete", "format", "prompt"]
-        forbidden_terms = ["ignorar", "omitir", "saltar", "sistema", "instrucción", "borrar", "formato", "prompt"]
+
+        raw_prompt = raw_prompt.strip()
+
+        if len(raw_prompt) > 300:
+            raw_prompt = raw_prompt[:300]
+
         clean_text = raw_prompt.lower()
-        for term in forbidden_terms:
-            clean_text = clean_text.replace(term, "")
-            
-        return f"Detalles estéticos adicionales pedidos por el usuario: {clean_text[:150]}."
+
+        injection_patterns = [
+            "ignore", "skip", "forget", "disregard", "override", "bypass",
+            "system", "instruction", "prompt", "jailbreak", "dan", "do anything now",
+            "you are now", "act as", "pretend", "roleplay", "simulate",
+            "ignorar", "omitir", "saltar", "olvidar", "sistema", "instrucción",
+            "borrar", "formato", "ahora eres", "actúa como", "simula", "finge",
+            "olvida todo", "nuevo rol", "sin restricciones",
+        ]
+
+        adult_patterns = [
+            "nude", "naked", "nsfw", "explicit", "pornographic", "erotic",
+            "sexual", "xxx", "hentai", "lingerie", "topless", "desnudo",
+            "desnuda", "erótico", "sin ropa", "lencería", "explicito",
+        ]
+
+        violence_patterns = [
+            "gun", "weapon", "knife", "sword", "bomb", "explosive", "rifle",
+            "pistol", "firearm", "grenade", "arma", "pistola", "cuchillo",
+            "bomba", "explosivo", "fusil", "granada", "sangre", "blood",
+            "gore", "kill", "murder", "matar", "violencia", "violence",
+        ]
+
+        hate_patterns = [
+            "nazi", "racist", "racista", "hate", "odio", "terror", "terrorist",
+            "extremist", "supremacist",
+        ]
+
+        checks = [
+            (injection_patterns, "El prompt contiene instrucciones no permitidas."),
+            (adult_patterns,     "El prompt contiene contenido adulto no permitido."),
+            (violence_patterns,  "El prompt contiene referencias a violencia o armas."),
+            (hate_patterns,      "El prompt contiene contenido de odio no permitido."),
+        ]
+
+        for patterns, message in checks:
+            for term in patterns:
+                if term in clean_text:
+                    print(f"[Guardrail] Bloqueado por '{term}': {message}")
+                    raise HTTPException(status_code=400, detail=message)
+
+        # ─── Whitelist de dominio ─────────────────────────────────────────────────
+        fashion_keywords = [
+            "cuero", "tela", "ante", "gamuza", "charol", "lona", "terciopelo",
+            "satén", "nylon", "leather", "suede", "canvas", "velvet",
+            "color", "tono", "negro", "blanco", "rojo", "azul", "verde",
+            "marrón", "beige", "dorado", "plateado", "rosa", "gris",
+            "black", "white", "red", "blue", "brown", "gold", "silver",
+            "tacón", "plataforma", "suela", "punta", "bota", "sandalia",
+            "elegante", "casual", "deportivo", "minimalista", "moderno",
+            "vintage", "heel", "sole", "boot", "sandal", "elegant", "sporty",
+            "brillante", "mate", "textura", "costura", "bordado", "estampado",
+            "shiny", "matte", "texture", "stitching", "pattern", "embroidery",
+            "estilo", "diseño", "detalles", "líneas", "forma", "style", "design",
+        ]
+
+        if not any(kw in clean_text for kw in fashion_keywords):
+            raise HTTPException(
+                status_code=400,
+                detail="El prompt debe describir características del calzado (material, color, estilo, etc.)."
+            )
+
+        return f" Detalles estéticos adicionales pedidos por el usuario: {clean_text[:250]}."
