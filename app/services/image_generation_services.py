@@ -327,25 +327,4 @@ class ImageGenerationService:
                     print(f"[Guardrail] Bloqueado por '{term}': {message}")
                     raise HTTPException(status_code=400, detail=message)
 
-        # ─── Whitelist de dominio ─────────────────────────────────────────────────
-        fashion_keywords = [
-            "cuero", "tela", "ante", "gamuza", "charol", "lona", "terciopelo",
-            "satén", "nylon", "leather", "suede", "canvas", "velvet",
-            "color", "tono", "negro", "blanco", "rojo", "azul", "verde",
-            "marrón", "beige", "dorado", "plateado", "rosa", "gris",
-            "black", "white", "red", "blue", "brown", "gold", "silver",
-            "tacón", "plataforma", "suela", "punta", "bota", "sandalia",
-            "elegante", "casual", "deportivo", "minimalista", "moderno",
-            "vintage", "heel", "sole", "boot", "sandal", "elegant", "sporty",
-            "brillante", "mate", "textura", "costura", "bordado", "estampado",
-            "shiny", "matte", "texture", "stitching", "pattern", "embroidery",
-            "estilo", "diseño", "detalles", "líneas", "forma", "style", "design",
-        ]
-
-        if not any(kw in clean_text for kw in fashion_keywords):
-            raise HTTPException(
-                status_code=400,
-                detail="El prompt debe describir características del calzado (material, color, estilo, etc.)."
-            )
-
-        return f" Detalles estéticos adicionales pedidos por el usuario: {clean_text[:250]}."
+        return f" Detalles estéticos adicionales pedidos por el usuario: {clean_text[:400]}."
