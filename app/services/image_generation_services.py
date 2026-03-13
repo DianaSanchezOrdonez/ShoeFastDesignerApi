@@ -317,7 +317,6 @@ class ImageGenerationService:
         checks = [
             (injection_patterns, "El prompt contiene instrucciones no permitidas."),
             (adult_patterns,     "El prompt contiene contenido adulto no permitido."),
-            (violence_patterns,  "El prompt contiene referencias a violencia o armas."),
             (hate_patterns,      "El prompt contiene contenido de odio no permitido."),
         ]
 
